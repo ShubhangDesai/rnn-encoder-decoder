@@ -6,6 +6,8 @@ import torch.optim as optim
 from torch.autograd import Variable
 import torch
 
+import numpy as np
+
 class RNN(object):
     def __init__(self, input_size, output_size):
         super(RNN, self).__init__()
@@ -17,7 +19,7 @@ class RNN(object):
         self.encoder_optimizer = optim.Adam(self.encoder.parameters())
         self.decoder_optimizer = optim.Adam(self.decoder.parameters())
 
-        sos, eos = torch.LongTensor(1, 1).zero_(), torch.LongTensor(1, 1).zero_()
+        sos, eos = Variable(torch.LongTensor(1, 1).zero_()), Variable(torch.LongTensor(1, 1).zero_())
         sos[0, 0], eos[0, 0] = 0, 1
 
         self.sos, self.eos = sos, eos
@@ -37,7 +39,7 @@ class RNN(object):
         target.append(self.eos)
         total_loss = 0
         for i in range(len(target) - 1):
-            _, softmax, hidden_state = self.decoder.forward(target[i], hidden_state)
+            _, softmax, hidden_state = self.decoder.forward(Variable(target[i]), hidden_state)
             total_loss += self.loss(softmax, Variable(target[i+1][0]))
 
         total_loss.backward()
@@ -45,20 +47,26 @@ class RNN(object):
         self.decoder_optimizer.step()
         self.encoder_optimizer.step()
 
-        return total_loss
+        return total_loss.data[0]
 
     def eval(self, input):
         hidden_state = self.encoder.first_hidden()
 
         # Encoder
         for ivec in input:
-            _, hidden_state = self.encoder.forward(ivec, hidden_state)
+            _, hidden_state = self.encoder.forward(Variable(ivec), hidden_state)
 
-        outputs = []
-        output = self.sos
+        sentence = []
+        input = self.sos
         # Decoder
-        while output is not self.eos:
-            output, _, hidden_state = self.decoder.forward(output, hidden_state)
-            outputs += output
+        while input.data[0, 0] != 1:
+            output, _, hidden_state = self.decoder.forward(input, hidden_state)
+            word = np.argmax(output.data.numpy()).reshape((1, 1))
+            input = Variable(torch.LongTensor(word))
+            sentence.append(word)
 
-        return outputs
+        return sentence
+
+    def save(self):
+        torch.save(self.encoder.state_dict(), "models/encoder.ckpt")
+        torch.save(self.decoder.state_dict(), "models/decoder.ckpt")
