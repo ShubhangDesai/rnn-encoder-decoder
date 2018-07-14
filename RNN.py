@@ -19,35 +19,39 @@ class RNN(object):
         self.encoder_optimizer = optim.Adam(self.encoder.parameters())
         self.decoder_optimizer = optim.Adam(self.decoder.parameters())
 
-        sos, eos = Variable(torch.LongTensor(1, 1).zero_()), Variable(torch.LongTensor(1, 1).zero_())
+        sos, eos = torch.LongTensor(1, 1).zero_(), torch.LongTensor(1, 1).zero_()
         sos[0, 0], eos[0, 0] = 0, 1
 
         self.sos, self.eos = sos, eos
 
 
     def train(self, input, target):
+        target.insert(0, self.sos)
+        target.append(self.eos)
+
         self.encoder_optimizer.zero_grad()
         self.decoder_optimizer.zero_grad()
-        hidden_state = self.encoder.first_hidden()
 
         # Encoder
+        hidden_state = self.encoder.first_hidden()
         for ivec in input:
             _, hidden_state = self.encoder.forward(Variable(ivec), hidden_state)
 
         # Decoder
-        target.insert(0, self.sos)
-        target.append(self.eos)
-        total_loss = 0
+        total_loss, outputs = 0, []
         for i in range(len(target) - 1):
             _, softmax, hidden_state = self.decoder.forward(Variable(target[i]), hidden_state)
+
+            outputs.append(np.argmax(softmax.data.numpy(), 1)[:, np.newaxis])
             total_loss += self.loss(softmax, Variable(target[i+1][0]))
 
+        total_loss /= len(outputs)
         total_loss.backward()
 
         self.decoder_optimizer.step()
         self.encoder_optimizer.step()
 
-        return total_loss.data[0]
+        return total_loss.data[0], outputs
 
     def eval(self, input):
         hidden_state = self.encoder.first_hidden()

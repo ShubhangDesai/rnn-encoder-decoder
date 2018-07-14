@@ -37,7 +37,6 @@ class LanguageLoader(object):
         dictionary = ["<SOS>", "<EOS>", "<UNK>"]
 
         corpus = read_data(path)
-        #corpus = ["the negative log likelihood loss", "it is useful to train a classification problem with n classes" "if provided, the optional argument weights should be a 1D Tensor assigning weight to each of the classes", "this is particularly useful when you have an unbalanced training set"]
         words = " ".join(corpus).split()
         mc = Counter(words).most_common(self.vocab_size-3)
         dictionary.extend([word for word, _ in mc])
@@ -47,6 +46,7 @@ class LanguageLoader(object):
 
     def sentences(self, amount):
         indeces = np.random.choice(len(self.input_vecs), amount)
+        indeces = range(len(self.input_vecs))
         sentences = [(self.input_vecs[i], self.output_vecs[i]) for i in indeces]
 
         return sentences
@@ -55,8 +55,9 @@ class LanguageLoader(object):
         vectors = [self.vectorize(word, self.input_dict) for word in sentence.lower().split()]
         return vectors
 
-    def vec_to_sentence(self, vectors):
-        sentence = " ".join([self.output_dict[vec[0, 0]] for vec in vectors])
+    def vec_to_sentence(self, vectors, language='output'):
+        dict = self.output_dict if language == 'output' else self.input_dict
+        sentence = " ".join([dict[vec[0, 0]] for vec in vectors])
         return sentence
 
     def vectorize(self, word, list):
