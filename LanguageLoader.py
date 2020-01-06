@@ -32,9 +32,10 @@ class LanguageLoader(object):
             print("Output language loaded.")
 
         self.input_vecs, self.output_vecs = self.filter(self.input_vecs, self.output_vecs)
+        self.pad, self.sos, self.eos = np.zeros((1, 1)) + 3, np.zeros((1, 1)), np.zeros((1, 1)) + 1
 
     def init_language(self, path):
-        dictionary = ["<SOS>", "<EOS>", "<UNK>"]
+        dictionary = ["<SOS>", "<EOS>", "<UNK>", "<PAD>"]
 
         corpus = read_data(path)
         words = " ".join(corpus).split()
@@ -44,12 +45,24 @@ class LanguageLoader(object):
 
         return dictionary, vectors, len(dictionary)
 
-    def sentences(self, amount):
+    def sentences(self, amount, batch_size=5):
         indeces = np.random.choice(len(self.input_vecs), amount)
-        indeces = range(len(self.input_vecs))
-        sentences = [(self.input_vecs[i], self.output_vecs[i]) for i in indeces]
+        in_sentences, out_sentences = [self.input_vecs[i] for i in indeces], [[self.sos] + self.output_vecs[i] + [self.eos] for i in indeces]
 
-        return sentences
+        batches = []
+        for i in range(0, amount, batch_size):
+            in_batch, out_batch = in_sentences[i:i+batch_size], out_sentences[i:i+batch_size]
+            max_in_len, max_out_len = max([len(sentence) for sentence in in_batch]), max([len(sentence) for sentence in out_batch])
+
+            in_batch = np.array([sentence + [self.pad for _ in range(max_in_len - len(sentence))] for sentence in in_batch])
+            in_batch = np.transpose(np.squeeze(in_batch, 3), (1, 0, 2))
+
+            out_batch = np.array([sentence + [self.pad for _ in range(max_out_len - len(sentence))] for sentence in out_batch])
+            out_batch = np.transpose(np.squeeze(out_batch, 3), (1, 0, 2))
+
+            batches.append((in_batch, out_batch))
+
+        return batches
 
     def sentence_to_vec(self, sentence):
         vectors = [self.vectorize(word, self.input_dict) for word in sentence.lower().split()]
@@ -57,12 +70,13 @@ class LanguageLoader(object):
 
     def vec_to_sentence(self, vectors, language='output'):
         dict = self.output_dict if language == 'output' else self.input_dict
-        sentence = " ".join([dict[vec[0, 0]] for vec in vectors])
+        sentence = " ".join([dict[int(vec[0, 0])] for vec in vectors])
         return sentence
 
     def vectorize(self, word, list):
-        vec = torch.LongTensor(1, 1).zero_()
-        index = 2 if word not in list else list.index(word)
+        #vec = torch.LongTensor(1, 1).zero_()
+        vec = np.zeros((1, 1), dtype=np.int32)
+        index = list.index("<UNK>") if word not in list else list.index(word)
         vec[0][0] = index
         return vec
 

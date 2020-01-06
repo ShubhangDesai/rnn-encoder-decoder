@@ -9,7 +9,7 @@ import torch
 import numpy as np
 
 class RNN(object):
-    def __init__(self, input_size, output_size):
+    def __init__(self, input_size, output_size, resume=False):
         super(RNN, self).__init__()
 
         self.encoder = Encoder(input_size)
@@ -19,31 +19,27 @@ class RNN(object):
         self.encoder_optimizer = optim.Adam(self.encoder.parameters())
         self.decoder_optimizer = optim.Adam(self.decoder.parameters())
 
-        sos, eos = torch.LongTensor(1, 1).zero_(), torch.LongTensor(1, 1).zero_()
-        sos[0, 0], eos[0, 0] = 0, 1
-
-        self.sos, self.eos = sos, eos
+        if resume:
+            self.encoder.load_state_dict(torch.load("models/encoder.ckpt"))
+            self.decoder.load_state_dict(torch.load("models/decoder.ckpt"))
 
 
     def train(self, input, target):
-        target.insert(0, self.sos)
-        target.append(self.eos)
-
         self.encoder_optimizer.zero_grad()
         self.decoder_optimizer.zero_grad()
 
         # Encoder
         hidden_state = self.encoder.first_hidden()
         for ivec in input:
-            _, hidden_state = self.encoder.forward(Variable(ivec), hidden_state)
+            _, hidden_state = self.encoder.forward(ivec, hidden_state)
 
         # Decoder
         total_loss, outputs = 0, []
         for i in range(len(target) - 1):
-            _, softmax, hidden_state = self.decoder.forward(Variable(target[i]), hidden_state)
+            _, softmax, hidden_state = self.decoder.forward(target[i], hidden_state)
 
             outputs.append(np.argmax(softmax.data.numpy(), 1)[:, np.newaxis])
-            total_loss += self.loss(softmax, Variable(target[i+1][0]))
+            total_loss += self.loss(softmax, target[i+1].squeeze(1))
 
         total_loss /= len(outputs)
         total_loss.backward()

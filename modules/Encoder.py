@@ -10,7 +10,7 @@ class Encoder(nn.Module):
         self.gru = nn.GRU(embedding_size, hidden_size, 1)
 
     def forward(self, input, hidden):
-        embedded = self.embedding(input).view(1, 1, -1)
+        embedded = self.embedding(input).view(input.size(0), 1, -1)
         output, hidden_state = self.gru(embedded, hidden)
         return output, hidden_state
 

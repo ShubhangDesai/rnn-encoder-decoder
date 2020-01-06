@@ -12,7 +12,7 @@ class Decoder(nn.Module):
     def forward(self, input, hidden):
         embedded = self.embedding(input)
         output, hidden_state = self.gru(embedded, hidden)
-        output = output.view(1, output.size(2))
+        output = output.view(output.size(0), output.size(2))
         linear = self.linear(output)
         softmax = self.softmax(linear)
         return output, softmax, hidden_state
